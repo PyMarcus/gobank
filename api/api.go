@@ -2,10 +2,13 @@ package api
 
 import (
 	"encoding/json"
-	"net/http"
+	"fmt"
 	"log"
+	"net/http"
 
 	"github.com/gorilla/mux"
+	_ "github.com/PyMarcus/gobank/types"
+
 )
 
 type apiFunc func(http.ResponseWriter, *http.Request) error
@@ -20,8 +23,8 @@ func makeHTTPHandleFunc(f apiFunc) http.HandlerFunc{
 }
 
 func WriteJSON(w http.ResponseWriter, status int, values any) error{
+	w.Header().Set("Content-Type", "application/json")   //this must be come before the writterheader function
 	w.WriteHeader(status)
-	w.Header().Set("Content-Type", "application/json")
 	return json.NewEncoder(w).Encode(values)
 }
 
@@ -49,11 +52,19 @@ func (a *APIServer) Run(){
 }
 
 func (a *APIServer) handleAccount(w http.ResponseWriter, r *http.Request) error{
-	return nil 
+	switch(r.Method){
+	case "GET":
+		return a.handleGetAccount(w, r)
+	case "POST":
+		return a.handleCreateAccount(w, r)
+	case "DELETE":
+		return a.handleDeleteAccount(w, r)
+	}
+	return fmt.Errorf("Method %s not allowed!", r.Method)
 }
 
 func (a *APIServer) handleGetAccount(w http.ResponseWriter, r *http.Request) error{
-	return nil 
+	return nil
 }
 
 func (a *APIServer) handleCreateAccount(w http.ResponseWriter, r *http.Request) error{
