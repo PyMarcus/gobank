@@ -6,39 +6,24 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/PyMarcus/gobank/storage"
+	"github.com/PyMarcus/gobank/types"
 	"github.com/gorilla/mux"
-	_ "github.com/PyMarcus/gobank/types"
-
 )
-
-type apiFunc func(http.ResponseWriter, *http.Request) error
-
-// makeHTTPHandleFunc is a decorator to a handle function to convert type
-func makeHTTPHandleFunc(f apiFunc) http.HandlerFunc{
-	return func(w http.ResponseWriter, r *http.Request){
-		if err := f(w, r); err != nil{
-			WriteJSON(w, http.StatusBadRequest, APIError{Error: err.Error()})
-		}
-	}
-}
-
-func WriteJSON(w http.ResponseWriter, status int, values any) error{
-	w.Header().Set("Content-Type", "application/json")   //this must be come before the writterheader function
-	w.WriteHeader(status)
-	return json.NewEncoder(w).Encode(values)
-}
 
 type APIServer struct {
 	listenAddr string
+	store storage.Storage
 }
 
 type APIError struct{
 	Error string 
 }
 
-func NewAPIServer(listenAddr string) *APIServer {
+func NewAPIServer(listenAddr string, store storage.Storage) *APIServer {
 	return &APIServer{
 		listenAddr: listenAddr,
+		store: store,
 	}
 }
 
@@ -68,7 +53,18 @@ func (a *APIServer) handleGetAccount(w http.ResponseWriter, r *http.Request) err
 }
 
 func (a *APIServer) handleCreateAccount(w http.ResponseWriter, r *http.Request) error{
-	return nil 
+	create := new(types.CreateAccountRequest)
+	if err := json.NewDecoder(r.Body).Decode(create); err != nil{
+		return err 
+	}
+
+	acc := types.NewAccount(create.FirstName, create.LastName)
+
+	if err := a.store.CreateAccount(acc); err != nil{
+		return err
+	}
+
+	return WriteJSON(w, http.StatusCreated, acc)
 }
 
 func (a *APIServer) handleDeleteAccount(w http.ResponseWriter, r *http.Request) error{
@@ -77,4 +73,22 @@ func (a *APIServer) handleDeleteAccount(w http.ResponseWriter, r *http.Request) 
 
 func (a *APIServer) handleTransfer(w http.ResponseWriter, r *http.Request) error{
 	return nil 
+}
+
+
+type apiFunc func(http.ResponseWriter, *http.Request) error
+
+// makeHTTPHandleFunc is a decorator to a handle function to convert type
+func makeHTTPHandleFunc(f apiFunc) http.HandlerFunc{
+	return func(w http.ResponseWriter, r *http.Request){
+		if err := f(w, r); err != nil{
+			WriteJSON(w, http.StatusBadRequest, APIError{Error: err.Error()})
+		}
+	}
+}
+
+func WriteJSON(w http.ResponseWriter, status int, values any) error{
+	w.Header().Set("Content-Type", "application/json")   //this must be come before the writterheader function
+	w.WriteHeader(status)
+	return json.NewEncoder(w).Encode(values)
 }
