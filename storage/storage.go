@@ -13,7 +13,7 @@ type Storage interface{
 	DeleteAccount(string) error 
 	UpdateAccount(*types.Account) error 
 	GetAccountById(string) (*types.Account, error)
-	GetAccount() ([]types.Account, error)
+	GetAccount() ([]*types.Account, error)
 }
 
 type PostgresqlStore struct{
@@ -81,8 +81,8 @@ func (psql *PostgresqlStore) GetAccountById(id string) (*types.Account, error){
 	return nil, nil
 }
 
-func (psql *PostgresqlStore) GetAccount() ([]types.Account, error){
-	var accs []types.Account
+func (psql *PostgresqlStore) GetAccount() ([]*types.Account, error){
+	accs := []*types.Account{}
 
 	stmt := "SELECT * FROM account;"
 
@@ -96,7 +96,7 @@ func (psql *PostgresqlStore) GetAccount() ([]types.Account, error){
 	defer response.Close()
 
 	for response.Next(){
-		var acc types.Account
+		acc := new(types.Account)
 
 		response.Scan(
 			&acc.ID,
@@ -110,6 +110,6 @@ func (psql *PostgresqlStore) GetAccount() ([]types.Account, error){
 		accs = append(accs, acc)
 	}
 
-
+	log.Println(accs)
 	return accs, nil
 }
