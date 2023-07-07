@@ -2,6 +2,7 @@ package storage
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 
 	"github.com/PyMarcus/gobank/types"
@@ -78,7 +79,16 @@ func (psql *PostgresqlStore) UpdateAccount(account *types.Account) error{
 }
 
 func (psql *PostgresqlStore) GetAccountById(id string) (*types.Account, error){
-	return nil, nil
+	rows, err := psql.db.Query("SELECT * FROM account WHERE id = $1", id)
+
+	if err != nil{
+		return nil, err 
+	}
+
+	for rows.Next(){
+		return scanIntoAccount(rows)
+	}
+	return nil, fmt.Errorf("Account %s not found", id)
 }
 
 func (psql *PostgresqlStore) GetAccount() ([]*types.Account, error){
@@ -96,16 +106,12 @@ func (psql *PostgresqlStore) GetAccount() ([]*types.Account, error){
 	defer response.Close()
 
 	for response.Next(){
-		acc := new(types.Account)
+		
+		acc, err := scanIntoAccount(response)
 
-		response.Scan(
-			&acc.ID,
-			&acc.FirstName,
-			&acc.LastName,
-			&acc.Number,
-			&acc.Balance,
-			&acc.CreateAt,
-		)
+		if err != nil{
+			return nil, err
+		}
 
 		accs = append(accs, acc)
 	}
@@ -113,3 +119,18 @@ func (psql *PostgresqlStore) GetAccount() ([]*types.Account, error){
 	log.Println(accs)
 	return accs, nil
 }
+
+func scanIntoAccount(rows *sql.Rows) (*types.Account, error){
+	acc := new(types.Account)
+
+	err := rows.Scan(
+		&acc.ID,
+		&acc.FirstName,
+		&acc.LastName,
+		&acc.Number,
+		&acc.Balance,
+		&acc.CreateAt,
+	)
+	return acc, err
+}
+

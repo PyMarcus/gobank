@@ -31,6 +31,7 @@ func (a *APIServer) Run(){
 	router := mux.NewRouter()
 	
 	router.HandleFunc("/account", makeHTTPHandleFunc(a.handleAccount))
+	router.HandleFunc("/account/{id}", makeHTTPHandleFunc(a.handleGetAccountById))
 	
 	log.Println("GOBANK API is running on ", a.listenAddr)
 	http.ListenAndServe(a.listenAddr, router)
@@ -57,6 +58,19 @@ func (a *APIServer) handleGetAccount(w http.ResponseWriter, r *http.Request) err
 	log.Println("Successfully get data")
 	return nil
 }
+
+func (a *APIServer) handleGetAccountById(w http.ResponseWriter, r *http.Request) error{
+	id := mux.Vars(r)["id"]
+
+	account, err := a.store.GetAccountById(id)
+
+	if err != nil{
+		return err 
+	}
+
+	return WriteJSON(w, http.StatusOK, account)
+}
+
 
 func (a *APIServer) handleCreateAccount(w http.ResponseWriter, r *http.Request) error{
 	create := new(types.CreateAccountRequest)
