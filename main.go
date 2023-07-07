@@ -17,4 +17,5 @@ func main(){
 
 	a := api.NewAPIServer("127.0.0.1:3000", store)
 	a.Run()
+	log.Println("Ok!")
 }
