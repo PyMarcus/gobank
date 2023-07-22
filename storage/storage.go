@@ -9,24 +9,24 @@ import (
 	_ "github.com/lib/pq"
 )
 
-type Storage interface{
-	CreateAccount(*types.Account) error 
-	DeleteAccount(string) error 
-	UpdateAccount(*types.Account) error 
+type Storage interface {
+	CreateAccount(*types.Account) error
+	DeleteAccount(string) error
+	UpdateAccount(*types.Account) error
 	GetAccountById(string) (*types.Account, error)
 	GetAccount() ([]*types.Account, error)
 }
 
-type PostgresqlStore struct{
-	db *sql.DB 
+type PostgresqlStore struct {
+	db *sql.DB
 }
 
-func NewPostgresqlStore() (*PostgresqlStore, error){
-	const CONNSTR string = "user=postgres dbname=fusion password=123 host=localhost port=5432 sslmode=disable"
+func NewPostgresqlStore() (*PostgresqlStore, error) {
+	const CONNSTR string = "user=postgres dbname=postgres host=localhost port=5432 sslmode=disable"
 
 	db, err := sql.Open("postgres", CONNSTR)
 
-	if err != nil{
+	if err != nil {
 		log.Fatal(err)
 	}
 
@@ -37,7 +37,7 @@ func NewPostgresqlStore() (*PostgresqlStore, error){
 	}, nil
 }
 
-func (psql *PostgresqlStore) CreateAccount(account *types.Account) error{
+func (psql *PostgresqlStore) CreateAccount(account *types.Account) error {
 	log.Println("Inserting data...")
 	stmt := "INSERT INTO account (id, first_name, last_name, number, balance, create_at) VALUES ($1, $2, $3, $4, $5, $6);"
 	tx, err := psql.db.Begin()
@@ -70,28 +70,35 @@ func (psql *PostgresqlStore) CreateAccount(account *types.Account) error{
 	return nil
 }
 
-func (psql *PostgresqlStore) DeleteAccount(id string) error{
-	return nil
-}
+func (psql *PostgresqlStore) DeleteAccount(id string) error {
+	_, err := psql.db.Exec("DELETE FROM account WHERE id = $1;", id)
 
-func (psql *PostgresqlStore) UpdateAccount(account *types.Account) error{
-	return nil
-}
-
-func (psql *PostgresqlStore) GetAccountById(id string) (*types.Account, error){
-	rows, err := psql.db.Query("SELECT * FROM account WHERE id = $1", id)
-
-	if err != nil{
-		return nil, err 
+	if err != nil {
+		return err
 	}
 
-	for rows.Next(){
+	log.Printf("Data with id: %s was deleted \n", id)
+	return nil
+}
+
+func (psql *PostgresqlStore) UpdateAccount(account *types.Account) error {
+	return nil
+}
+
+func (psql *PostgresqlStore) GetAccountById(id string) (*types.Account, error) {
+	rows, err := psql.db.Query("SELECT * FROM account WHERE id = $1", id)
+
+	if err != nil {
+		return nil, err
+	}
+
+	for rows.Next() {
 		return scanIntoAccount(rows)
 	}
 	return nil, fmt.Errorf("Account %s not found", id)
 }
 
-func (psql *PostgresqlStore) GetAccount() ([]*types.Account, error){
+func (psql *PostgresqlStore) GetAccount() ([]*types.Account, error) {
 	accs := []*types.Account{}
 
 	stmt := "SELECT * FROM account;"
@@ -105,11 +112,11 @@ func (psql *PostgresqlStore) GetAccount() ([]*types.Account, error){
 
 	defer response.Close()
 
-	for response.Next(){
-		
+	for response.Next() {
+
 		acc, err := scanIntoAccount(response)
 
-		if err != nil{
+		if err != nil {
 			return nil, err
 		}
 
@@ -120,7 +127,7 @@ func (psql *PostgresqlStore) GetAccount() ([]*types.Account, error){
 	return accs, nil
 }
 
-func scanIntoAccount(rows *sql.Rows) (*types.Account, error){
+func scanIntoAccount(rows *sql.Rows) (*types.Account, error) {
 	acc := new(types.Account)
 
 	err := rows.Scan(
@@ -133,4 +140,3 @@ func scanIntoAccount(rows *sql.Rows) (*types.Account, error){
 	)
 	return acc, err
 }
-
