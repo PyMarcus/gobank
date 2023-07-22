@@ -31,7 +31,7 @@ func (a *APIServer) Run() {
 	router := mux.NewRouter()
 
 	router.HandleFunc("/account", makeHTTPHandleFunc(a.handleAccount))
-	router.HandleFunc("/account/{id}", makeHTTPHandleFunc(a.handleGetAccountById))
+	router.HandleFunc("/account/{id}", makeHTTPHandleFunc(a.handleAccountId))
 
 	log.Println("GOBANK API is running on ", a.listenAddr)
 	http.ListenAndServe(a.listenAddr, router)
@@ -50,6 +50,17 @@ func (a *APIServer) handleAccount(w http.ResponseWriter, r *http.Request) error 
 	return fmt.Errorf("Method %s not allowed!", r.Method)
 }
 
+func (a *APIServer) handleAccountId(w http.ResponseWriter, r *http.Request) error{
+	log.Println("Method: ", r.Method)
+	switch r.Method {
+	case "GET":
+		return a.handleGetAccount(w, r)
+	case "DELETE":
+		return a.handleDeleteAccount(w, r)
+	}
+	return fmt.Errorf("Method %s not allowed!", r.Method)
+}
+
 func (a *APIServer) handleGetAccount(w http.ResponseWriter, r *http.Request) error {
 	resp, err := a.store.GetAccount()
 	if err != nil {
@@ -62,7 +73,6 @@ func (a *APIServer) handleGetAccount(w http.ResponseWriter, r *http.Request) err
 
 func (a *APIServer) handleGetAccountById(w http.ResponseWriter, r *http.Request) error {
 	id := mux.Vars(r)["id"]
-
 	account, err := a.store.GetAccountById(id)
 
 	if err != nil {

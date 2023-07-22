@@ -14,7 +14,7 @@ func main(){
 	if err != nil{
 		log.Fatal(err)
 	}
-
+	log.Println("running...")
 	a := api.NewAPIServer("127.0.0.1:3000", store)
 	a.Run()
 	log.Println("Ok!")
