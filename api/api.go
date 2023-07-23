@@ -166,19 +166,12 @@ func withJWTAuth(handleFunc http.HandlerFunc, s storage.Storage) http.HandlerFun
 		}
 
 
-		if err != nil{
-			WriteJSON(w, http.StatusForbidden, APIError{Error: "Permission Denied"})
-		}else{
-			handleFunc(w, r)
-		}
 	}
 }
 
 func getID(r *http.Request) string{
 	return mux.Vars(r)["id"]
 }
-
-const tok = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2NvdW50TnVtYmVyIjo1MjE1MTQsImV4cGlyZXNBdCI6MTY5MDIyOTMwMn0.ynFoS5SgzSv-8JY3R6_xRSQq96E3YwGPk9EOE-sjnuY"
 
 func validateJWT(tokenStr string) (*jwt.Token, error){
 	JWT_SECRET := os.Getenv("JWT_SECRET")
