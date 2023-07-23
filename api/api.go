@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"time"
 
 	"github.com/PyMarcus/gobank/storage"
 	"github.com/PyMarcus/gobank/types"
+	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/mux"
 )
 
@@ -29,10 +32,10 @@ func NewAPIServer(listenAddr string, store storage.Storage) *APIServer {
 
 func (a *APIServer) Run() {
 	router := mux.NewRouter()
-
+	
 	router.HandleFunc("/account", makeHTTPHandleFunc(a.handleAccount))
-	router.HandleFunc("/account/{id}", makeHTTPHandleFunc(a.handleAccountId))
-
+	router.HandleFunc("/account/{id}", withJWTAuth(makeHTTPHandleFunc(a.handleAccountId), a.store))
+	router.HandleFunc("/transfer", withJWTAuth(makeHTTPHandleFunc(a.handleTransfer), a.store))
 	log.Println("GOBANK API is running on ", a.listenAddr)
 	http.ListenAndServe(a.listenAddr, router)
 }
@@ -94,6 +97,14 @@ func (a *APIServer) handleCreateAccount(w http.ResponseWriter, r *http.Request) 
 		return err
 	}
 
+	token, err := createJWTToken(acc)
+
+	if err != nil{
+		return err 
+	}
+
+	log.Println(token)
+
 	return WriteJSON(w, http.StatusCreated, acc)
 }
 
@@ -114,7 +125,73 @@ func (a *APIServer) handleDeleteAccount(w http.ResponseWriter, r *http.Request) 
 }
 
 func (a *APIServer) handleTransfer(w http.ResponseWriter, r *http.Request) error {
-	return nil
+	toTransfer := new(types.TransferRequest)
+	if err := json.NewDecoder(r.Body).Decode(toTransfer); err != nil{
+		return err 
+	}
+
+	defer r.Body.Close()
+
+	return WriteJSON(w, http.StatusOK, toTransfer)
+}
+
+func createJWTToken(account *types.Account) (string, error){
+	claims := &jwt.MapClaims{
+		"expiresAt": time.Now().Add(time.Hour * 24).Unix(),
+		"accountNumber": account.Number,
+	}
+
+	secret := os.Getenv("JWT_SECRET")
+	
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(secret))
+}
+
+func withJWTAuth(handleFunc http.HandlerFunc, s storage.Storage) http.HandlerFunc{
+	return func(w http.ResponseWriter, r *http.Request){
+		log.Println("Calling JWT middleware to protect route...")
+
+		tokenStr := r.Header.Get("X-token")
+		
+		tk, err := validateJWT(tokenStr)
+
+		if !tk.Valid{
+			WriteJSON(w, http.StatusForbidden, APIError{Error: "Permission Denied"})
+			return 
+		}
+
+		if err != nil{
+			WriteJSON(w, http.StatusForbidden, APIError{Error: "Permission Denied"})
+			return 
+		}
+
+
+		if err != nil{
+			WriteJSON(w, http.StatusForbidden, APIError{Error: "Permission Denied"})
+		}else{
+			handleFunc(w, r)
+		}
+	}
+}
+
+func getID(r *http.Request) string{
+	return mux.Vars(r)["id"]
+}
+
+const tok = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2NvdW50TnVtYmVyIjo1MjE1MTQsImV4cGlyZXNBdCI6MTY5MDIyOTMwMn0.ynFoS5SgzSv-8JY3R6_xRSQq96E3YwGPk9EOE-sjnuY"
+
+func validateJWT(tokenStr string) (*jwt.Token, error){
+	JWT_SECRET := os.Getenv("JWT_SECRET")
+	return jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
+		// Don't forget to validate the alg is what you expect:
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+		}
+	
+		// hmacSampleSecret is a []byte containing your secret, e.g. []byte("my_secret_key")
+		return []byte(JWT_SECRET), nil
+	})
+	
 }
 
 type apiFunc func(http.ResponseWriter, *http.Request) error

@@ -15,6 +15,11 @@ type Account struct{
 	CreateAt  time.Time `json:"create_at" db:"create_at"`
 }
 
+type TransferRequest struct{
+	ToAccount string `json:"to_account"`
+	Amount int64 `json:"amount"`
+}
+
 type CreateAccountRequest struct{
 	FirstName string    `json:"first_name" db:"first_name"`
 	LastName  string    `json:"last_name" db:"last_name"`
