@@ -33,11 +33,46 @@ func NewAPIServer(listenAddr string, store storage.Storage) *APIServer {
 func (a *APIServer) Run() {
 	router := mux.NewRouter()
 	
-	router.HandleFunc("/account", makeHTTPHandleFunc(a.handleAccount))
+	router.HandleFunc("/login", makeHTTPHandleFunc(a.handleLogin))
+	router.HandleFunc("/account", withJWTAuth(makeHTTPHandleFunc(a.handleAccount), a.store))
+	router.HandleFunc("/account/update", withJWTAuth(makeHTTPHandleFunc(a.handleUpdate), a.store))
 	router.HandleFunc("/account/{id}", withJWTAuth(makeHTTPHandleFunc(a.handleAccountId), a.store))
 	router.HandleFunc("/transfer", withJWTAuth(makeHTTPHandleFunc(a.handleTransfer), a.store))
 	log.Println("GOBANK API is running on ", a.listenAddr)
 	http.ListenAndServe(a.listenAddr, router)
+}
+
+func (a *APIServer) handleLogin(w http.ResponseWriter, r *http.Request) error{
+	if r.Method != "POST"{
+		return fmt.Errorf("Method not allowed %s", r.Method)
+	}
+
+	var requestLogin types.LoginRequest
+
+	
+	if err := json.NewDecoder(r.Body).Decode(&requestLogin); err != nil{
+		return err
+	}
+
+	acc, err := a.store.GetAccountByNumber(requestLogin.Number)
+
+	if err != nil{
+		return err 
+	}
+
+	if acc != nil{
+		token, err := createJWTToken(acc)
+		if err != nil{
+			return err 
+		}
+
+		return WriteJSON(w, http.StatusOK, &types.LoginResponse{
+			Token: token,
+			Number: acc.Number,
+		})
+	}
+
+	return WriteJSON(w, http.StatusOK, requestLogin)
 }
 
 func (a *APIServer) handleAccount(w http.ResponseWriter, r *http.Request) error {
@@ -85,25 +120,45 @@ func (a *APIServer) handleGetAccountById(w http.ResponseWriter, r *http.Request)
 	return WriteJSON(w, http.StatusOK, account)
 }
 
+func (a *APIServer) handleUpdate(w http.ResponseWriter, r *http.Request) error{
+	if r.Method != "POST"{
+		return fmt.Errorf("Method not allowed %s", r.Method)
+	}
+
+	var acc *types.Account
+
+	json.NewDecoder(r.Body).Decode(&acc)
+
+	err := a.store.UpdateAccount(acc)
+
+	if err != nil{
+		return err 
+	}
+
+	return WriteJSON(w, http.StatusCreated, acc)
+}
+ 
 func (a *APIServer) handleCreateAccount(w http.ResponseWriter, r *http.Request) error {
 	create := new(types.CreateAccountRequest)
 	if err := json.NewDecoder(r.Body).Decode(create); err != nil {
 		return err
 	}
 
-	acc := types.NewAccount(create.FirstName, create.LastName)
+	acc, e := types.NewAccount(create.FirstName, create.LastName, create.Password)
+	
+	if e != nil{
+		return e
+	}
 
 	if err := a.store.CreateAccount(acc); err != nil {
 		return err
 	}
 
-	token, err := createJWTToken(acc)
+	_, err := createJWTToken(acc)
 
 	if err != nil{
 		return err 
 	}
-
-	log.Println(token)
 
 	return WriteJSON(w, http.StatusCreated, acc)
 }
@@ -152,6 +207,11 @@ func withJWTAuth(handleFunc http.HandlerFunc, s storage.Storage) http.HandlerFun
 		log.Println("Calling JWT middleware to protect route...")
 
 		tokenStr := r.Header.Get("X-token")
+
+		if tokenStr == ""{
+			WriteJSON(w, http.StatusForbidden, APIError{Error: "Permission Denied"})
+			return
+		}
 		
 		tk, err := validateJWT(tokenStr)
 
@@ -165,7 +225,7 @@ func withJWTAuth(handleFunc http.HandlerFunc, s storage.Storage) http.HandlerFun
 			return 
 		}
 
-
+		handleFunc(w, r)
 	}
 }
 

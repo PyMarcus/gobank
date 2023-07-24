@@ -15,6 +15,7 @@ type Storage interface {
 	UpdateAccount(*types.Account) error
 	GetAccountById(string) (*types.Account, error)
 	GetAccount() ([]*types.Account, error)
+	GetAccountByNumber(int64) (*types.Account, error)
 }
 
 type PostgresqlStore struct {
@@ -38,8 +39,8 @@ func NewPostgresqlStore() (*PostgresqlStore, error) {
 }
 
 func (psql *PostgresqlStore) CreateAccount(account *types.Account) error {
-	log.Println("Inserting data...")
-	stmt := "INSERT INTO account (id, first_name, last_name, number, balance, create_at) VALUES ($1, $2, $3, $4, $5, $6);"
+	log.Println("Inserting data to ", *&account.FirstName)
+	stmt := "INSERT INTO account (id, encrypted_password, first_name, last_name, number, balance, create_at) VALUES ($1, $2, $3, $4, $5, $6, $7);"
 	tx, err := psql.db.Begin()
 
 	if err != nil {
@@ -50,6 +51,7 @@ func (psql *PostgresqlStore) CreateAccount(account *types.Account) error {
 	_, err = tx.Exec(
 		stmt,
 		account.ID,
+		account.EncryptedPassword,
 		account.FirstName,
 		account.LastName,
 		account.Number,
@@ -81,7 +83,30 @@ func (psql *PostgresqlStore) DeleteAccount(id string) error {
 	return nil
 }
 
+func (psql *PostgresqlStore) GetAccountByNumber(number int64) (*types.Account, error){
+	rows, err := psql.db.Query("SELECT * FROM account WHERE number = $1;", number)
+
+	if err != nil {
+		return nil, err
+	}
+
+	for rows.Next(){
+		return scanIntoAccount(rows)
+	}
+
+	return nil, fmt.Errorf("Not authorizated")
+}
+
 func (psql *PostgresqlStore) UpdateAccount(account *types.Account) error {
+	acc, err := types.UpdateAccount(account.ID, account.FirstName, account.LastName, account.EncryptedPassword, account.Number, account.Balance)
+	
+	_, err = psql.db.Query("UPDATE account SET first_name = $1, last_name = $2, encrypted_password = $3, number = $4, balance = $5 WHERE id = $6;",
+	acc.FirstName, acc.LastName, acc.EncryptedPassword, acc.Number, acc.Balance, acc.ID)
+
+	if err != nil {
+		return  err
+	}
+
 	return nil
 }
 
@@ -136,6 +161,7 @@ func scanIntoAccount(rows *sql.Rows) (*types.Account, error) {
 		&acc.LastName,
 		&acc.Number,
 		&acc.Balance,
+		&acc.EncryptedPassword,
 		&acc.CreateAt,
 	)
 	return acc, err
